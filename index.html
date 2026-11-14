@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#14243a">
+<meta name="description" content="司法書士試験 不登法・商登法の肢別○×学習">
+<link rel="manifest" href="manifest.webmanifest">
+<title>司法書士 肢トレ</title>
+<style>
+:root{color-scheme:light;--ink:#172235;--muted:#697586;--line:#e2e7ed;--paper:#f4f6f8;--navy:#14243a;--green:#16834a;--red:#c43d3d}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif}
+header{background:var(--navy);color:white;padding:calc(14px + env(safe-area-inset-top)) 18px 14px}
+h1{font-size:19px;margin:0;font-weight:750}header small{opacity:.75}
+main{max-width:680px;margin:0 auto;padding:18px 16px calc(28px + env(safe-area-inset-bottom))}
+.panel{background:white;border:1px solid var(--line);border-radius:16px;padding:18px;margin:0 0 14px;box-shadow:0 2px 10px #14243a08}
+label{font-size:13px;color:var(--muted);display:block;margin-bottom:7px}
+select,button{font:inherit}select{width:100%;padding:13px;border:1px solid var(--line);border-radius:11px;background:white;color:var(--ink)}
+.row{display:flex;gap:10px}.row>*{flex:1}
+button{border:0;border-radius:12px;padding:14px 12px;font-weight:700;cursor:pointer}
+.primary{background:var(--navy);color:white}.secondary{background:#edf1f5;color:var(--ink)}.ghost{background:white;border:1px solid var(--line);color:var(--ink)}
+button:disabled{opacity:.4;cursor:default}
+.meta{display:flex;justify-content:space-between;gap:10px;color:var(--muted);font-size:12px;margin-bottom:12px}
+.progress{height:5px;background:#e8edf1;border-radius:9px;overflow:hidden;margin-bottom:16px}.bar{height:100%;background:var(--green);width:0}
+.stem{font-size:13px;color:var(--muted);line-height:1.7;white-space:pre-wrap;margin-bottom:12px}
+.statement{font-size:19px;line-height:1.9;white-space:pre-wrap;overflow-wrap:anywhere}
+.answer{min-height:86px;display:flex;align-items:center;justify-content:center;font-size:64px;font-weight:800}
+.answer.correct{color:var(--green)}.answer.wrong{color:var(--red)}
+.hidden{display:none!important}.subtle{font-size:12px;color:var(--muted);line-height:1.7}
+.topline{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.star{font-size:13px}.status{font-size:12px;color:var(--muted)}
+footer{text-align:center;color:var(--muted);font-size:11px;padding:10px}
+@media(max-width:390px){.statement{font-size:17px}.panel{padding:15px}}
+</style>
+</head>
+<body>
+<header><h1>司法書士 肢トレ</h1><small>見る・判断する・次へ</small></header>
+<main>
+<section id="setup" class="panel">
+  <h2 style="font-size:17px;margin:0 0 16px">学習する科目を選択</h2>
+  <label for="subject">科目</label><select id="subject"><option value="REAL_ESTATE">不動産登記法</option><option value="COMMERCIAL">商業登記法</option></select>
+  <div style="height:14px"></div>
+  <label for="year">年度</label><select id="year"><option value="令和8年度">令和8年度</option></select>
+  <div style="height:14px"></div>
+  <label for="mode">出題順</label><select id="mode"><option value="normal">年度・問題順</option><option value="random">ランダム</option><option value="favorites">お気に入りのみ</option></select>
+  <div style="height:16px"></div>
+  <button id="start" class="primary" style="width:100%">学習開始</button>
+  <p class="subtle" id="counts"></p>
+</section>
+<section id="study" class="hidden">
+  <div class="topline"><button id="home" class="ghost" style="padding:9px 12px">科目選択</button><span id="favorite" class="star">☆ お気に入り</span></div>
+  <div class="panel">
+    <div class="meta"><span id="position"></span><span id="subjectLabel"></span></div>
+    <div class="progress"><div id="bar" class="bar"></div></div>
+    <div id="stem" class="stem"></div>
+    <div id="statement" class="statement"></div>
+    <div id="answer" class="answer"></div>
+    <button id="reveal" class="primary" style="width:100%">答えを見る</button>
+  </div>
+  <div class="row">
+    <button id="prev" class="secondary">← 前へ</button>
+    <button id="next" class="primary">次へ →</button>
+  </div>
+  <p class="subtle" style="text-align:center;margin-top:12px">正誤は出題当時の公式解答から展開したデータです。法的根拠・現行法との照合は未完了です。</p>
+</section>
+<section id="error" class="panel hidden"></section>
+<footer>問題データはこのアプリ内に同梱されています。学習進捗・お気に入りはこの端末内に保存されます。</footer>
+</main>
+<script>
+const DATA_FILE="司法書士_令和8午後_肢別マスター_v002.csv";
+let all=[], deck=[], index=0, revealed=false, subject="REAL_ESTATE";
+const $=id=>document.getElementById(id);
+function parseCSV(text){
+ const rows=[];let row=[],cell="",q=false;
+ for(let i=0;i<text.length;i++){const c=text[i],n=text[i+1];
+  if(c==='"'&&q&&n==='"'){cell+='"';i++}
+  else if(c==='"')q=!q;
+  else if(c===','&&!q){row.push(cell);cell=""}
+  else if((c==='\n'||c==='\r')&&!q){if(c==='\r'&&n==='\n')i++;row.push(cell);if(row.some(x=>x!==""))rows.push(row);row=[];cell=""}
+  else cell+=c;
+ }
+ if(cell.length||row.length){row.push(cell);rows.push(row)}
+ const headers=rows.shift()||[];
+ return rows.map(r=>Object.fromEntries(headers.map((h,i)=>[h,r[i]??""])));
+}
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function favs(){try{return JSON.parse(localStorage.getItem("shisho-favs")||"[]")}catch{return[]}}
+function saveFavs(a){localStorage.setItem("shisho-favs",JSON.stringify(a))}
+function progressKey(){return "shisho-progress-"+subject}
+function showError(msg){$("error").classList.remove("hidden");$("error").textContent=msg}
+async function init(){
+ try{
+  const r=await fetch(DATA_FILE);if(!r.ok)throw Error("CSVを読み込めません");
+  all=parseCSV((await r.text()).replace(/^\uFEFF/,""));
+  const years=[...new Set(all.map(x=>x.year))];
+  $("year").innerHTML=years.map(y=>`<option>${esc(y)}</option>`).join("");
+  $("counts").textContent=`収録データ：不登法 ${all.filter(x=>x.subject_id==="REAL_ESTATE").length}肢 ／ 商登法 ${all.filter(x=>x.subject_id==="COMMERCIAL").length}肢`;
+ }catch(e){showError("問題データの読み込みに失敗しました。CSVとアプリ本体が同じフォルダにあるか確認してください。")}
+}
+function start(){
+ subject=$("subject").value;
+ let rows=all.filter(x=>x.subject_id===subject&&x.year===$("year").value);
+ if($("mode").value==="favorites")rows=rows.filter(x=>favs().includes(x.id));
+ if($("mode").value==="random")rows=rows.sort(()=>Math.random()-.5);
+ deck=rows;index=0;revealed=false;
+ if(!deck.length){alert("該当する問題がありません。");return}
+ $("setup").classList.add("hidden");$("study").classList.remove("hidden");render();
+}
+function render(){
+ const x=deck[index];if(!x)return;
+ $("position").textContent=`${index+1} / ${deck.length}肢`;
+ $("subjectLabel").textContent=`${x.year}・午後 第${x.question_no}問 ${x.branch}`;
+ $("bar").style.width=`${(index+1)/deck.length*100}%`;
+ $("stem").textContent=x.common_stem||"";
+ $("statement").textContent=x.statement||"";
+ $("answer").textContent=revealed?(x.answer_as_of_exam||"要確認"):"";
+ $("answer").className="answer"+(revealed?(x.answer_as_of_exam==="○"?" correct":x.answer_as_of_exam==="×"?" wrong":""):"");
+ $("reveal").classList.toggle("hidden",revealed);
+ $("favorite").textContent=favs().includes(x.id)?"★ お気に入り":"☆ お気に入り";
+ $("prev").disabled=index===0;$("next").disabled=index===deck.length-1;
+ const p=JSON.parse(localStorage.getItem(progressKey())||"{}");p[x.id]=true;localStorage.setItem(progressKey(),JSON.stringify(p));
+}
+$("start").onclick=start;
+$("reveal").onclick=()=>{revealed=true;render();$("reveal").classList.add("hidden")};
+$("next").onclick=()=>{if(index<deck.length-1){index++;revealed=false;render()}};
+$("prev").onclick=()=>{if(index>0){index--;revealed=false;render()}};
+$("home").onclick=()=>{$("study").classList.add("hidden");$("setup").classList.remove("hidden")};
+$("favorite").onclick=()=>{const x=deck[index],a=favs();const i=a.indexOf(x.id);if(i>=0)a.splice(i,1);else a.push(x.id);saveFavs(a);render()};
+init();
+if("serviceWorker" in navigator && location.protocol.startsWith("http"))window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
+</script>
+</body></html>
