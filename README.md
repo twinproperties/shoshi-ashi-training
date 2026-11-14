@@ -1,0 +1,1 @@
+# shoshi-ashi-training
