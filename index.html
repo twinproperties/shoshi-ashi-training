@@ -67,7 +67,11 @@ footer{text-align:center;color:var(--muted);font-size:11px;padding:10px}
 <footer>問題データはこのアプリ内に同梱されています。学習進捗・お気に入りはこの端末内に保存されます。</footer>
 </main>
 <script>
-const DATA_FILE="司法書士_令和8午後_肢別マスター_v002.csv";
+// 統合版を優先。旧ファイル名も予備として残す。
+const DATA_FILES=[
+ "司法書士_肢別マスター_v003.csv",
+ "司法書士_令和8午後_肢別マスター_v002.csv"
+];
 let all=[], deck=[], index=0, revealed=false, subject="REAL_ESTATE";
 const $=id=>document.getElementById(id);
 function parseCSV(text){
@@ -90,12 +94,19 @@ function progressKey(){return "shisho-progress-"+subject}
 function showError(msg){$("error").classList.remove("hidden");$("error").textContent=msg}
 async function init(){
  try{
-  const r=await fetch(DATA_FILE);if(!r.ok)throw Error("CSVを読み込めません");
-  all=parseCSV((await r.text()).replace(/^\uFEFF/,""));
-  const years=[...new Set(all.map(x=>x.year))];
+  let csvText=null, loadedFile="";
+  for(const file of DATA_FILES){
+   const r=await fetch(file+"?v=3",{cache:"no-store"});
+   if(r.ok){csvText=await r.text();loadedFile=file;break;}
+  }
+  if(csvText===null)throw Error("CSVを読み込めません");
+  all=parseCSV(csvText.replace(/^\uFEFF/,""));
+  if(!all.length)throw Error("CSVにデータがありません");
+  const years=[...new Set(all.map(x=>x.year).filter(Boolean))];
   $("year").innerHTML=years.map(y=>`<option>${esc(y)}</option>`).join("");
-  $("counts").textContent=`収録データ：不登法 ${all.filter(x=>x.subject_id==="REAL_ESTATE").length}肢 ／ 商登法 ${all.filter(x=>x.subject_id==="COMMERCIAL").length}肢`;
- }catch(e){showError("問題データの読み込みに失敗しました。CSVとアプリ本体が同じフォルダにあるか確認してください。")}
+  $("counts").textContent=`収録年度：${years.join("・")} ／ 収録データ：不登法 ${all.filter(x=>x.subject_id==="REAL_ESTATE").length}肢 ／ 商登法 ${all.filter(x=>x.subject_id==="COMMERCIAL").length}肢`;
+  console.info("Loaded:",loadedFile,"rows:",all.length);
+ }catch(e){showError("問題データの読み込みに失敗しました。統合CSVとアプリ本体が同じフォルダにあるか確認してください。");console.error(e)}
 }
 function start(){
  subject=$("subject").value;
